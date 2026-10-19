@@ -4,10 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss://broker.hivemq.com:8884 wss://broker.emqx.io:8084 wss://mqtt.eclipseprojects.io ws://localhost:*; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tiles.openfreemap.org; connect-src 'self' https://tiles.openfreemap.org wss://broker.hivemq.com:8884 wss://broker.emqx.io:8084 wss://mqtt.eclipseprojects.io ws://localhost:*; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="theme-color" content="#0f1b2d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>いまどこ（試作）</title>
+<link rel="stylesheet" href="maplibre-gl.css">
 <style>
 :root{
   --bg:#f2f4f8;--surface:#ffffff;--surface-2:#e9edf4;--fg:#142033;--muted:#5a6a80;--line:#d3dbe6;
@@ -81,7 +82,25 @@ h2{margin:0;font-size:22px;line-height:1.35}
 .modes button[aria-pressed="true"][data-m="fuzzy"]{background:var(--fuzzy);border-color:var(--fuzzy);color:var(--ink-fuzzy)}
 .modes button[aria-pressed="true"][data-m="off"]{background:var(--off);border-color:var(--off);color:#fff}
 
-/* レーダー */
+/* 地図 */
+.map-box{position:relative;background:var(--radar-bg);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);aspect-ratio:1/1.15}
+#map{position:absolute;inset:0}
+.map-box.radar #map{display:none}
+.map-box:not(.radar) #radar,.map-box:not(.radar) .radar-ctl,.map-box:not(.radar) .radar-note{display:none}
+.map-box.radar{aspect-ratio:auto}
+.map-ctl{position:absolute;right:10px;top:10px;display:flex;gap:6px;z-index:3}
+.map-ctl button{min-width:56px;height:44px;border-radius:12px;border:1px solid rgba(15,27,45,.25);background:rgba(255,255,255,.95);color:#0f1b2d;font-weight:700;font-size:14px;padding:0 12px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.map-ctl button[aria-pressed="true"]{background:#0f1b2d;color:#fff}
+.map-box.radar .map-ctl{display:none}
+.map-msg{position:absolute;left:10px;right:10px;top:10px;z-index:3;margin:0;padding:8px 12px;border-radius:10px;background:rgba(10,20,35,.82);color:#e8f0fb;font-size:12px}
+.pin{display:flex;flex-direction:column;align-items:center;pointer-events:none}
+.pin .lab{background:rgba(10,20,35,.86);color:#fff;font-size:12px;font-weight:700;line-height:1.4;padding:1px 7px;border-radius:7px;white-space:nowrap;margin-bottom:3px;max-width:160px;overflow:hidden;text-overflow:ellipsis}
+.pin .pdot{width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)}
+.pin.fz .pdot{width:14px;height:14px;border-style:dashed}
+.pin.stale{opacity:.5}
+.pin.me .pdot{background:#3b82f6}
+.maplibregl-ctrl-attrib{font-size:10px}
+/* レーダー（地図が読めない時の予備） */
 .radar-box{position:relative;background:var(--radar-bg);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
 #radar{display:block;width:100%;aspect-ratio:1;touch-action:none}
 .radar-ctl{position:absolute;right:10px;bottom:10px;display:flex;gap:6px}
@@ -172,7 +191,7 @@ h2{margin:0;font-size:22px;line-height:1.35}
         <li>位置は送る前にスマホの中で暗号化する。中継サーバーには読めない文字の並びしか届かない。</li>
         <li>鍵はグループのメンバーのスマホの中だけ。サーバーにも、このサイトにも送らない。</li>
         <li>サーバーに置くのは「今の位置」だけ。12時間で自動で消える。履歴はサーバーに残さない。</li>
-        <li>Googleなど外部のサービスにはつながない。地図の会社にも位置は伝わらない。</li>
+        <li>地図は OpenFreeMap（無料・登録なし・クッキーなし）から、表示してる範囲だけを取る。友達の位置は地図の会社に送らない。それ以外の外部サービス（Googleなど）にはつながない。</li>
       </ul>
     </div>
     <p class="notice">試作のWeb版は、画面をつけてこのページを開いてる間だけ共有されるよ。画面を消しても共有を続けるのは、iPhoneアプリ版でやる予定。</p>
@@ -232,9 +251,12 @@ h2{margin:0;font-size:22px;line-height:1.35}
     </div>
     <p class="alert" id="geoErr" hidden></p>
     <p class="alert" id="newAlert" hidden role="button" tabindex="0" title="タップで閉じる"></p>
-    <div class="radar-box">
+    <div class="map-box" id="mapBox">
+      <div id="map" aria-label="メンバーの位置の地図"></div>
       <canvas id="radar" aria-label="メンバーの位置を、自分を中心に表示"></canvas>
       <p class="radar-note" id="radarNote"></p>
+      <p class="map-msg" id="mapMsg" hidden></p>
+      <div class="map-ctl"><button type="button" id="fitAll" aria-pressed="true">全員</button><button type="button" id="fitMe">自分</button></div>
       <div class="radar-ctl"><button type="button" id="zOut" aria-label="広く">−</button><button type="button" id="zAuto">自動</button><button type="button" id="zIn" aria-label="狭く">＋</button></div>
     </div>
     <div class="meet">
@@ -252,6 +274,12 @@ h2{margin:0;font-size:22px;line-height:1.35}
 </main>
 
 <script src="mqtt.min.js"></script>
+<script type="module">
+/* 地図の部品（MapLibre GL JS 6.11.2）。このサイトから読みこむ */
+import * as maplibre from './maplibre-gl.mjs';
+window.ML = maplibre;
+window.dispatchEvent(new Event('ml-ready'));
+</script>
 <script>
 'use strict';
 /* =========================================================
@@ -730,7 +758,8 @@ function renderLog() {
         h('dt', {}, '中継サーバー'), h('dd', {}, hostOf(BROKERS[BID]) + '（無料の公開サーバー・MQTT ' + (V5 ? '5' : '3.1.1') + '）'),
         h('dt', {}, 'サーバーでの置き場所'), h('dd', { class: 'mono' }, GK.root + '/…（鍵から作った、意味のない名前）'),
         h('dt', {}, 'サーバーに置く時間'), h('dd', {}, V5 ? '位置は12時間、名簿は30日で自動で消える。招待は10分' : 'このサーバーは自動で消す仕組みがないから、抜ける時に消す'),
-        h('dt', {}, 'サーバーに見える物'), h('dd', {}, '意味のない文字の並び・大きさ・時刻・接続元のIPアドレス'))),
+        h('dt', {}, 'サーバーに見える物'), h('dd', {}, '意味のない文字の並び・大きさ・時刻・接続元のIPアドレス'),
+        h('dt', {}, '地図'), h('dd', {}, 'OpenFreeMap から、表示してる範囲の地図だけを取る。友達の位置やグループのことは地図の会社に送らない。どのページから来たかも伝えない'))),
     h('p', { class: 'verdict' + (st.bad ? ' warn' : '') }, st.bad ? '⚠ 開けないメッセージを ' + st.bad + '件はじいた。グループの外からの書き込みかも。鍵がないと中身は作れないから、影響はないよ' : 'グループの外からの書き込み：なし'),
     h('div', { class: 'stats' }, h('div', {}, h('b', {}, st.tx), '送った（' + kb(st.txB) + '）'), h('div', {}, h('b', {}, st.rx), '受け取った（' + kb(st.rxB) + '）'), h('div', {}, h('b', {}, st.bad + st.dup + st.old), 'はじいた')),
     h('p', { class: 'hint' }, '内訳：開けない ' + st.bad + '・重複 ' + st.dup + '・古い ' + st.old + '　／　保存分を消す合図 ' + st.del),
@@ -785,7 +814,7 @@ function drawRadar() {
   x.beginPath(); x.moveTo(c - R, c); x.lineTo(c + R, c); x.moveTo(c, c - R); x.lineTo(c, c + R); x.stroke();
   x.font = 'bold ' + (13 * dpr) + 'px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('北', c, c - R - 13 * dpr);
   if (!ctr) { $('#radarNote').textContent = 'まだ誰の位置も届いてないよ'; return; }
-  $('#radarNote').textContent = ctr.me ? '自分を中心に表示（上が北）' : 'オフの間は自分の位置を使わないから、メンバーの真ん中を中心に表示';
+  $('#radarNote').textContent = ($('#radarNote').dataset.why ? $('#radarNote').dataset.why + '。' : '') + (ctr.me ? '自分を中心に表示（上が北）' : 'オフの間は自分の位置を使わないから、メンバーの真ん中を中心に表示');
   const k = R / scale;
   const pt = p => { const dx = rad(p.lon - ctr.lon) * R_EARTH * Math.cos(rad(ctr.lat)), dy = rad(p.lat - ctr.lat) * R_EARTH; return [c + dx * k, c - dy * k]; };
   // 自分
@@ -842,6 +871,109 @@ $('#zAuto').addEventListener('click', () => { zoom = 'auto'; render(); toast('�
   cv.addEventListener('touchend', () => { base = 0; });
 })();
 
+/* ---------- 地図（OpenFreeMap）。友達の位置は地図の会社に送らない。地図の会社に伝わるのは「どのあたりの地図を取ったか」だけ ---------- */
+const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+const MAP_ATTR = '<a href="https://openfreemap.org" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>';
+let map = null, mapReady = false, mapFailTimer = 0, follow = 'all';
+const pins = new Map();
+function testStyle() {   // テスト用（自分のパソコンの中だけ）：外につながない地図
+  return { version: 8, sources: { land: { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[139, 35], [141, 35], [141, 37], [139, 37], [139, 35]]] } } } },
+    layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#dfe7ef' } }, { id: 'land', type: 'fill', source: 'land', paint: { 'fill-color': '#f4f1ea' } }] };
+}
+function useRadar(why) {
+  $('#mapBox').classList.add('radar');
+  if (why) { const m = $('#mapMsg'); m.hidden = true; $('#radarNote').dataset.why = why; }
+  render();
+}
+function initMap() {
+  if (map || !window.ML || !G || $('#sMain').hidden) return;
+  const ML = window.ML;
+  try {
+    const ctr = center() || { lat: 35.681, lon: 139.767 };
+    map = new ML.Map({
+      container: 'map', style: TEST && params.get('mapstyle') === 'local' ? testStyle() : MAP_STYLE,
+      center: [ctr.lon, ctr.lat], zoom: 13, maxZoom: 19, dragRotate: false, pitchWithRotate: false, touchPitch: false,
+      attributionControl: false, localIdeographFontFamily: "'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP','Noto Sans CJK JP',sans-serif"
+    });
+    map.touchZoomRotate.disableRotation();
+    map.addControl(new ML.AttributionControl({ compact: true, customAttribution: MAP_ATTR }), 'bottom-right');
+    map.on('load', () => {
+      mapReady = true; clearTimeout(mapFailTimer);
+      $('#mapBox').classList.remove('radar'); $('#mapMsg').hidden = true;
+      japaneseLabels(); addLayers(); syncMap(true);
+    });
+    map.on('error', e => { if (!mapReady) console.warn('map', e && e.error && e.error.message); });
+    ['dragstart', 'zoomstart'].forEach(ev => map.on(ev, e => { if (e.originalEvent) { follow = null; paintFollow(); } }));
+    mapFailTimer = setTimeout(() => { if (!mapReady) useRadar('地図を読みこめなかったから、レーダーで表示してるよ（電波を確認してね）'); }, 12000);
+  } catch (e) { console.warn(e); useRadar('このiPhoneでは地図が使えないから、レーダーで表示してるよ'); }
+}
+window.addEventListener('ml-ready', () => initMap());
+/* 地名は日本語があれば日本語で出す */
+function japaneseLabels() {
+  try {
+    map.getStyle().layers.forEach(l => {
+      if (l.type !== 'symbol' || !l.layout || !l.layout['text-field']) return;
+      if (!JSON.stringify(l.layout['text-field']).includes('name')) return;
+      map.setLayoutProperty(l.id, 'text-field', ['coalesce', ['get', 'name:ja'], ['get', 'name']]);
+    });
+  } catch (e) {}
+}
+function circlePoly(lat, lon, r, n = 48) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) { const a = i / n * 2 * Math.PI; pts.push([lon + (r * Math.sin(a)) / (R_EARTH * Math.cos(rad(lat))) * 180 / Math.PI, lat + (r * Math.cos(a)) / R_EARTH * 180 / Math.PI]); }
+  return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [pts] } };
+}
+function addLayers() {
+  map.addSource('rings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'rings-fill', type: 'fill', source: 'rings', paint: { 'fill-color': ['get', 'c'], 'fill-opacity': ['get', 'o'] } });
+  map.addLayer({ id: 'rings-line', type: 'line', source: 'rings', paint: { 'line-color': ['get', 'c'], 'line-width': 1.5, 'line-opacity': .7 } });
+}
+function pinEl(name, color, cls) {
+  const el = h('div', { class: 'pin ' + cls }, h('div', { class: 'lab' }, name), h('div', { class: 'pdot', style: 'background:' + color }));
+  return el;
+}
+function syncMap(first) {
+  if (!mapReady) return;
+  const want = new Map(), rings = [];
+  const me = G.mode !== 'off' && Geo.last ? Geo.last : null;
+  if (me) {
+    want.set('me', { lat: me.lat, lon: me.lon, name: '自分', color: '#3b82f6', cls: 'me' });
+    if (me.acc > 15) { const f = circlePoly(me.lat, me.lon, Math.min(me.acc, 3000)); f.properties = { c: '#3b82f6', o: .12 }; rings.push(f); }
+  }
+  members.forEach(p => {
+    if (p.id === G.me.id || !visible(p)) return;
+    const stale = Date.now() - p.st.t > 15 * 60 * 1000, fz = p.st.mode === 'fuzzy', col = colorOf(p.id);
+    want.set(p.id, { lat: p.st.loc.lat, lon: p.st.loc.lon, name: p.name + (stale ? '（' + ago(p.st.t) + '）' : fz ? '（あいまい）' : ''), color: col, cls: (fz ? 'fz ' : '') + (stale ? 'stale' : '') });
+    if (fz) { const f = circlePoly(p.st.loc.lat, p.st.loc.lon, 1000); f.properties = { c: col, o: .16 }; rings.push(f); }
+  });
+  pins.forEach((m, id) => { if (!want.has(id)) { m.remove(); pins.delete(id); } });
+  want.forEach((v, id) => {
+    const key = v.name + '|' + v.color + '|' + v.cls;
+    let m = pins.get(id);
+    if (!m || m._key !== key) { if (m) m.remove(); m = new window.ML.Marker({ element: pinEl(v.name, v.color, v.cls), anchor: 'bottom' }).setLngLat([v.lon, v.lat]).addTo(map); m._key = key; pins.set(id, m); }
+    else m.setLngLat([v.lon, v.lat]);
+  });
+  const src = map.getSource('rings'); if (src) src.setData({ type: 'FeatureCollection', features: rings });
+  const sig = [...want.entries()].map(([id, v]) => id + v.lat.toFixed(4) + v.lon.toFixed(4)).join('|');
+  if (follow && (first || sig !== syncMap.sig)) moveCamera(!first);
+  syncMap.sig = sig;
+}
+function moveCamera(anim) {
+  const ptsAll = [];
+  if (G.mode !== 'off' && Geo.last) ptsAll.push([Geo.last.lon, Geo.last.lat]);
+  if (follow === 'all') members.forEach(p => { if (p.id !== G.me.id && visible(p)) ptsAll.push([p.st.loc.lon, p.st.loc.lat]); });
+  if (!ptsAll.length) return;
+  if (ptsAll.length === 1) { map.easeTo({ center: ptsAll[0], zoom: Math.max(map.getZoom(), 15), duration: anim ? 600 : 0 }); return; }
+  const b = new window.ML.LngLatBounds(ptsAll[0], ptsAll[0]); ptsAll.forEach(q => b.extend(q));
+  map.fitBounds(b, { padding: { top: 70, bottom: 70, left: 50, right: 50 }, maxZoom: 16, duration: anim ? 600 : 0 });
+}
+function paintFollow() { $('#fitAll').setAttribute('aria-pressed', String(follow === 'all')); $('#fitMe').setAttribute('aria-pressed', String(follow === 'me')); }
+$('#fitAll').addEventListener('click', () => { follow = 'all'; paintFollow(); if (mapReady) moveCamera(true); });
+$('#fitMe').addEventListener('click', () => {
+  if (G.mode === 'off' || !Geo.last) { toast(G.mode === 'off' ? 'オフの間は自分の位置を使わないよ' : '自分の位置をさがしてるよ'); return; }
+  follow = 'me'; paintFollow(); if (mapReady) moveCamera(true);
+});
+
 let rTimer = 0;
 function render() { if (rTimer) return; rTimer = requestAnimationFrame(() => { rTimer = 0; renderNow(); }); }
 function renderNow() {
@@ -877,7 +1009,9 @@ function renderNow() {
         h('div', { class: 'meta' }, meta)),
       h('div', { class: 'dist' }, dist)));
   });
-  drawRadar();
+  if (!map) initMap();
+  if (mapReady) syncMap(false);
+  if ($('#mapBox').classList.contains('radar')) drawRadar();
 }
 window.addEventListener('resize', render);
 
