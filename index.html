@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss://broker.hivemq.com:8884 wss://broker.emqx.io:8084 wss://mqtt.eclipseprojects.io ws://localhost:*; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="theme-color" content="#0f1b2d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>いまどこ（試作）</title>
+<style>
+:root{
+  --bg:#f2f4f8;--surface:#ffffff;--surface-2:#e9edf4;--fg:#142033;--muted:#5a6a80;--line:#d3dbe6;
+  --head:#0f1b2d;--head-fg:#e8f0fb;
+  --on:#15803d;--on-soft:#dcf3e4;--fuzzy:#b45309;--fuzzy-soft:#fdf0d8;--off:#64748b;--off-soft:#e6eaf0;
+  --bad:#c2410c;--bad-soft:#fde6db;--me:#2563eb;
+  --radar-bg:#0f1b2d;--radar-line:rgba(160,190,230,.22);--radar-fg:#cfe0f5;
+  --ink-on:#fff;--ink-fuzzy:#fff;--ink-me:#fff;--ink-bad:#fff;
+  --r:16px;--shadow:0 4px 18px rgba(15,27,45,.10);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0a111d;--surface:#121c2c;--surface-2:#1a2639;--fg:#e4ecf7;--muted:#97a6bb;--line:#26354b;
+  --head:#070d17;--on:#4ade80;--on-soft:#12301f;--fuzzy:#fbbf24;--fuzzy-soft:#3a2a0c;--off:#94a3b8;--off-soft:#1f2a3a;
+  --bad:#fb923c;--bad-soft:#3b1d10;--me:#60a5fa;--radar-bg:#060c16;--shadow:0 4px 18px rgba(0,0,0,.4);
+  --ink-on:#052e16;--ink-fuzzy:#2b1700;--ink-me:#06142b;--ink-bad:#2a0f02;
+}}
+:root[data-theme="dark"]{
+  --bg:#0a111d;--surface:#121c2c;--surface-2:#1a2639;--fg:#e4ecf7;--muted:#97a6bb;--line:#26354b;
+  --head:#070d17;--on:#4ade80;--on-soft:#12301f;--fuzzy:#fbbf24;--fuzzy-soft:#3a2a0c;--off:#94a3b8;--off-soft:#1f2a3a;
+  --bad:#fb923c;--bad-soft:#3b1d10;--me:#60a5fa;--radar-bg:#060c16;--shadow:0 4px 18px rgba(0,0,0,.4);
+  --ink-on:#052e16;--ink-fuzzy:#2b1700;--ink-me:#06142b;--ink-bad:#2a0f02;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Noto Sans CJK JP",system-ui,sans-serif;font-size:16px;line-height:1.6;-webkit-tap-highlight-color:transparent}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px;background:var(--head);color:var(--head-fg)}
+.bar h1{flex:1;margin:0;font-size:19px;letter-spacing:.06em;display:flex;align-items:center;gap:8px}
+.bar .tag{font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;background:rgba(255,255,255,.14)}
+.bar .icon-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.3);background:transparent;color:inherit;font-size:13px;font-weight:700}
+.wrap{max-width:560px;margin:0 auto;padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 40px)}
+.screen{display:flex;flex-direction:column;gap:16px}
+.screen[hidden]{display:none}
+h2{margin:0;font-size:22px;line-height:1.35}
+.lead{margin:0;color:var(--muted)}
+.eyebrow{margin:0;font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.panel-title{margin:0;font-size:14px;font-weight:700;color:var(--muted)}
+.m0{margin:0}.small{font-size:13px}.hint{margin:0;font-size:13px;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:10px 18px;border-radius:14px;border:1px solid var(--line);background:var(--surface);font-weight:700;font-size:16px}
+.btn.primary{background:var(--me);border-color:var(--me);color:var(--ink-me)}
+.btn.go{background:var(--on);border-color:var(--on);color:var(--ink-on)}
+.btn.danger{background:var(--bad);border-color:var(--bad);color:var(--ink-bad)}
+.btn.ghost{background:transparent}
+.btn.wide{width:100%}
+.btn.big{min-height:56px;font-size:17px}
+.btn:disabled{opacity:.5}
+.row{display:flex;gap:10px;align-items:center}
+.row>.btn{flex:1}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-weight:700;font-size:14px}
+.input,.textarea{width:100%;min-height:48px;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:16px}
+.textarea{min-height:90px;resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:13px;word-break:break-all}
+.promise{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.status{margin:0;font-size:14px;font-weight:700}
+.status.ng{color:var(--bad)}
+.lk{width:1em;height:1em;vertical-align:-.12em;flex:0 0 auto}
+
+/* 共有の状態（いつも見える帯） */
+.statebar{position:sticky;top:calc(env(safe-area-inset-top,0px) + 56px);z-index:15;display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:var(--r);background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow)}
+.statebar .now{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
+.statebar .dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto;background:var(--off)}
+.statebar.on{border-color:var(--on)} .statebar.on .dot{background:var(--on);box-shadow:0 0 0 4px var(--on-soft);animation:pulse 2s infinite}
+.statebar.fuzzy{border-color:var(--fuzzy)} .statebar.fuzzy .dot{background:var(--fuzzy);box-shadow:0 0 0 4px var(--fuzzy-soft)}
+@keyframes pulse{50%{box-shadow:0 0 0 7px var(--on-soft)}}
+.statebar .sub{font-size:12px;color:var(--muted);font-weight:500}
+.modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.modes button{min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);font-weight:700;font-size:14px;padding:4px}
+.modes button[aria-pressed="true"][data-m="on"]{background:var(--on);border-color:var(--on);color:var(--ink-on)}
+.modes button[aria-pressed="true"][data-m="fuzzy"]{background:var(--fuzzy);border-color:var(--fuzzy);color:var(--ink-fuzzy)}
+.modes button[aria-pressed="true"][data-m="off"]{background:var(--off);border-color:var(--off);color:#fff}
+
+/* レーダー */
+.radar-box{position:relative;background:var(--radar-bg);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
+#radar{display:block;width:100%;aspect-ratio:1;touch-action:manipulation}
+.radar-ctl{position:absolute;right:10px;bottom:10px;display:flex;gap:6px}
+.radar-ctl button{min-width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(10,20,35,.75);color:#e8f0fb;font-weight:700;font-size:14px;padding:0 10px}
+.radar-note{position:absolute;left:10px;top:10px;right:10px;margin:0;font-size:12px;color:var(--radar-fg);opacity:.85}
+.meet{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.meet .btn{min-height:44px;font-size:15px}
+.meet .btn[aria-pressed="true"]{background:var(--on);border-color:var(--on);color:var(--ink-on)}
+
+/* 友達の一覧 */
+.people{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.people li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:var(--surface-2)}
+.people .pc{width:14px;height:14px;border-radius:50%}
+.people .nm{font-weight:700;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.people .meta{font-size:12px;color:var(--muted)}
+.people .dist{font-weight:700;font-size:14px;text-align:right;white-space:nowrap}
+.badge{font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;background:var(--surface);border:1px solid var(--line)}
+.badge.new{background:var(--bad);color:var(--ink-bad);border-color:transparent}
+.badge.fz{background:var(--fuzzy-soft);color:var(--fuzzy);border-color:transparent}
+.badge.mt{background:var(--on-soft);color:var(--on);border-color:transparent}
+.people li.stale{opacity:.6}
+.alert{margin:0;padding:12px 14px;border-radius:12px;background:var(--bad-soft);color:var(--fg);font-size:14px;border:1px solid var(--bad)}
+.notice{margin:0;padding:12px 14px;border-radius:12px;background:var(--surface-2);font-size:13px;color:var(--muted)}
+
+/* 共有の選び方（はじめての時） */
+.choice{display:flex;flex-direction:column;gap:8px}
+.choice label{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:var(--surface)}
+.choice input{margin-top:5px;width:20px;height:20px}
+.choice label:has(input:checked){border-color:var(--me)}
+.choice b{display:block}
+.choice span{font-size:13px;color:var(--muted)}
+
+/* 下から出る画面・確認 */
+.modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,10,20,.55);padding:12px}
+.modal-card{width:100%;max-width:560px;max-height:88vh;overflow:auto;background:var(--surface);border-radius:20px;padding:20px 18px calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;flex-direction:column;gap:12px}
+.modal-card h2{font-size:20px}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);transform:translateX(-50%) translateY(20px);opacity:0;transition:.25s;z-index:60;max-width:calc(100% - 32px);padding:12px 16px;border-radius:14px;background:#0f1b2d;color:#fff;font-weight:700;font-size:14px;text-align:center;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.timer{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;text-align:center;margin:0}
+.netpill{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 62px);z-index:40;padding:6px 14px;border-radius:999px;background:var(--bad);color:#fff;font-size:13px;font-weight:700}
+
+/* 通信ログ */
+.secbox{padding:12px 14px;border-radius:12px;background:var(--on-soft)}
+.secbox .on{margin:0;font-weight:700;color:var(--on);display:flex;align-items:center;gap:6px}
+.kv{display:grid;grid-template-columns:minmax(0,1fr);gap:2px;margin:8px 0 0;font-size:13px}
+.kv dt{font-weight:700;color:var(--muted);font-size:12px;margin-top:6px}
+.kv dd{margin:0;word-break:break-all}
+.mono,.wire{font-family:ui-monospace,Menlo,monospace;font-size:11px;word-break:break-all;line-height:1.45}
+.verdict{margin:0;padding:10px 12px;border-radius:12px;font-weight:700;font-size:14px;background:var(--surface-2)}
+.verdict.warn{background:var(--bad-soft);color:var(--bad)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stats div{padding:8px;border-radius:12px;background:var(--surface-2);text-align:center;font-size:12px}
+.stats b{display:block;font-size:20px}
+.seg2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.seg2 button{min-height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:700;font-size:13px;padding:4px}
+.seg2 button[aria-pressed="true"]{background:var(--me);border-color:var(--me);color:var(--ink-me)}
+.loglist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.loglist li{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:8px;align-items:start;padding:8px 10px;border-radius:10px;background:var(--surface-2);font-size:13px}
+.loglist .tm{color:var(--muted);font-variant-numeric:tabular-nums}
+.loglist .dir{font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;background:var(--surface)}
+.loglist li.tx .dir{background:var(--me);color:var(--ink-me)}
+.loglist li.ng{background:var(--bad-soft)}
+.loglist li.ng .dir{background:var(--bad);color:var(--ink-bad)}
+.loglist .k{font-weight:700}
+.loglist.ev li{grid-template-columns:auto minmax(0,1fr)}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>いまどこ <span class="tag">試作</span></h1>
+  <button class="icon-btn" id="logBtn" type="button" hidden aria-label="通信ログ（暗号化中）"><svg class="lk" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="currentColor"/><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>ログ</button>
+</header>
+<div class="netpill" id="netPill" role="status" hidden>通信が切れた。つなぎ直してるよ…</div>
+
+<main class="wrap">
+  <!-- はじめ -->
+  <section id="sHome" class="screen">
+    <div><p class="eyebrow">親友どうしの位置共有</p><h2>見せたい分だけ、見せ合う</h2></div>
+    <p class="lead">位置は「正確」「あいまい（約1km）」「オフ」から選べる。位置もメッセージも全部、スマホの中で暗号化してから送るよ。</p>
+    <div class="row" style="flex-direction:column;align-items:stretch">
+      <button class="btn big primary" id="goCreate" type="button">グループを作る</button>
+      <button class="btn big" id="goJoin" type="button">招待リンクで入る</button>
+    </div>
+    <div class="panel">
+      <p class="panel-title">このアプリの約束</p>
+      <ul class="promise">
+        <li>アカウント・電話番号・メールアドレスはいらない。名前はあだ名でOK。</li>
+        <li>位置は送る前にスマホの中で暗号化する。中継サーバーには読めない文字の並びしか届かない。</li>
+        <li>鍵はグループのメンバーのスマホの中だけ。サーバーにも、このサイトにも送らない。</li>
+        <li>サーバーに置くのは「今の位置」だけ。12時間で自動で消える。履歴はサーバーに残さない。</li>
+        <li>Googleなど外部のサービスにはつながない。地図の会社にも位置は伝わらない。</li>
+      </ul>
+    </div>
+    <p class="notice">試作のWeb版は、画面をつけてこのページを開いてる間だけ共有されるよ。画面を消しても共有を続けるのは、iPhoneアプリ版でやる予定。</p>
+  </section>
+
+  <!-- グループを作る -->
+  <section id="sCreate" class="screen" hidden>
+    <div><p class="eyebrow">グループを作る</p><h2>名前を決めよう</h2></div>
+    <div class="field"><label for="cGroup">グループの名前</label><input id="cGroup" class="input" maxlength="16" autocomplete="off" placeholder="例：いつメン"></div>
+    <div class="field"><label for="cName">あなたの名前</label><input id="cName" class="input" maxlength="12" autocomplete="off" placeholder="あだ名でOK（本名は入れなくていい）"></div>
+    <button class="btn big primary" id="createBtn" type="button">作る</button>
+    <p class="status" id="createStatus" role="status"></p>
+    <button class="btn wide ghost" type="button" data-home>もどる</button>
+  </section>
+
+  <!-- 招待で入る -->
+  <section id="sJoin" class="screen" hidden>
+    <div><p class="eyebrow">招待で入る</p><h2 id="jTitle">招待リンクを貼り付けてね</h2></div>
+    <div class="panel" id="jInfo" hidden>
+      <p class="m0"><b id="jBy">-</b> からの招待</p>
+      <p class="m0">グループ「<b id="jGroup">-</b>」</p>
+      <p class="hint" id="jLeft"></p>
+    </div>
+    <div class="field" id="jLinkField"><label for="jLink">招待リンク</label>
+      <textarea id="jLink" class="textarea" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="LINEのメッセージを長押し →「コピー」→ ここに貼り付け"></textarea>
+      <button class="btn wide" id="jCheck" type="button">リンクを確かめる</button>
+    </div>
+    <div class="field" id="jNameField" hidden><label for="jName">あなたの名前</label><input id="jName" class="input" maxlength="12" autocomplete="off" placeholder="あだ名でOK（本名は入れなくていい）"></div>
+    <button class="btn big primary" id="joinBtn" type="button" hidden>このグループに入る</button>
+    <p class="status" id="joinStatus" role="status"></p>
+    <button class="btn wide ghost" type="button" data-home>もどる</button>
+  </section>
+
+  <!-- はじめての共有（本人が自分で決める） -->
+  <section id="sConsent" class="screen" hidden>
+    <div><p class="eyebrow" id="consentGroup">グループ</p><h2>位置をどう見せる？</h2></div>
+    <p class="lead">あとからいつでも変えられるよ。選んだ分だけが、グループのメンバーに見える。</p>
+    <div class="choice" role="radiogroup" aria-label="共有のしかた">
+      <label><input type="radio" name="mode" value="on" checked><div><b>正確に見せる</b><span>今いる場所がそのまま伝わる。合流に便利。</span></div></label>
+      <label><input type="radio" name="mode" value="fuzzy"><div><b>あいまいに見せる（約1km）</b><span>駅や町のあたりまでは伝わる。家や建物はわからない。</span></div></label>
+      <label><input type="radio" name="mode" value="off"><div><b>今は見せない（オフ）</b><span>自分の位置は送らない。ほかの人が見せてる分は見える。</span></div></label>
+    </div>
+    <p class="notice">「始める」を押すと、iPhoneが位置情報の利用を聞いてくるよ。「許可」を選んでね。オフを選んだ時は、位置情報は使わない。</p>
+    <button class="btn big go" id="consentBtn" type="button">始める</button>
+  </section>
+
+  <!-- メイン -->
+  <section id="sMain" class="screen" hidden>
+    <div class="statebar" id="stateBar" aria-live="polite">
+      <div class="now"><span class="dot"></span><span id="stateText">-</span></div>
+      <div class="sub" id="stateSub"></div>
+      <div class="modes" role="group" aria-label="共有のしかた">
+        <button type="button" data-m="on">正確</button>
+        <button type="button" data-m="fuzzy">あいまい</button>
+        <button type="button" data-m="off">オフ</button>
+      </div>
+    </div>
+    <p class="alert" id="geoErr" hidden></p>
+    <p class="alert" id="newAlert" hidden role="button" tabindex="0" title="タップで閉じる"></p>
+    <div class="radar-box">
+      <canvas id="radar" aria-label="メンバーの位置を、自分を中心に表示"></canvas>
+      <p class="radar-note" id="radarNote"></p>
+      <div class="radar-ctl"><button type="button" id="zOut" aria-label="広く">−</button><button type="button" id="zAuto">自動</button><button type="button" id="zIn" aria-label="狭く">＋</button></div>
+    </div>
+    <div class="meet">
+      <div><b>合流モード</b><div class="hint" id="meetHint">10秒ごとに送る。30分で自動で戻る</div></div>
+      <button class="btn" id="meetBtn" type="button" aria-pressed="false">オンにする</button>
+    </div>
+    <div class="panel">
+      <p class="panel-title" id="peopleTitle">メンバー</p>
+      <ul class="people" id="people"></ul>
+    </div>
+    <button class="btn big primary" id="inviteBtn" type="button">招待リンクを作る（10分有効）</button>
+    <div class="row"><button class="btn" id="logBtn2" type="button">通信ログ</button><button class="btn" id="settingsBtn" type="button">設定</button></div>
+    <p class="notice">Web版は、画面をつけてこのページを開いてる間だけ共有されるよ。画面を消すと、ほかの人には「◯分前」の位置が残って見える。</p>
+  </section>
+</main>
+
+<script src="mqtt.min.js"></script>
+<script>
+'use strict';
+/* =========================================================
+   いまどこ（試作）
+   ・位置・名前・出入りの知らせは全部、端末の中で暗号化（AES-GCM 256bit）してから送る
+   ・グループの鍵は招待リンクの「#」より後ろからだけ受け取る（サーバーにもGitHubにも届かない）
+   ・中継は無料の公開MQTTサーバー。読めない文字の並びを、決めた時間だけ置く
+   ========================================================= */
+
+/* ---------- 小道具 ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c));
+  return el;
+}
+const LOCK_SVG = '<svg class="lk" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="currentColor"/><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+/* このサイトは同じアカウントのほかのページと保存場所を共有するので、名前の頭に imadoko. を付けて分ける */
+const PFX = 'imadoko.';
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(PFX + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(PFX + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(PFX + k); } catch (e) {} },
+  wipe() { try { Object.keys(localStorage).filter(k => k.startsWith(PFX)).forEach(k => localStorage.removeItem(k)); } catch (e) {} }
+};
+function b64u(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function unb64u(str) { str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '='; const bin = atob(str); const b = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i); return b; }
+const hex = b => Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+const RID = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), x => RID[x % 32]).join('');
+const clean = (s, n) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f​-‏‪-‮⁦-⁩]/g, '').trim().slice(0, n);
+const ago = t => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 60 ? 'たった今' : s < 3600 ? Math.floor(s / 60) + '分前' : Math.floor(s / 3600) + '時間前'; };
+function toast(msg, ms = 2600) {
+  let t = $('#toast');
+  if (!t) { t = h('div', { id: 'toast', class: 'toast', role: 'status', 'aria-live': 'polite' }); document.body.append(t); }
+  t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), ms);
+}
+function ask(msg, { ok = 'OK', cancel = 'やめる', danger = false } = {}) {
+  return new Promise(res => {
+    const close = v => { dlg.remove(); res(v); };
+    const dlg = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', onclick: e => { if (e.target === dlg) close(false); } },
+      h('div', { class: 'modal-card' }, h('p', { class: 'm0' }, msg),
+        h('div', { class: 'row' }, h('button', { class: 'btn', type: 'button', onclick: () => close(false) }, cancel), h('button', { class: 'btn ' + (danger ? 'danger' : 'primary'), type: 'button', onclick: () => close(true) }, ok))));
+    document.body.append(dlg);
+  });
+}
+function sheet(title, body) {
+  const close = () => dlg.remove();
+  const dlg = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title, onclick: e => { if (e.target === dlg) close(); } },
+    h('div', { class: 'modal-card' }, h('h2', {}, title), body, h('button', { class: 'btn wide', type: 'button', onclick: close }, 'とじる')));
+  document.body.append(dlg);
+  return close;
+}
+function show(id) { $$('main > section').forEach(s => { s.hidden = s.id !== id; }); window.scrollTo(0, 0); $('#logBtn').hidden = id !== 'sMain'; }
+
+/* ---------- 暗号 ---------- */
+const tenc = new TextEncoder(), tdec = new TextDecoder();
+const SALT = new Uint8Array(32);
+const newSecret = () => b64u(crypto.getRandomValues(new Uint8Array(32)));
+/* 1つの秘密（32バイト）から、メッセージ用の鍵と、サーバー上の置き場所の名前を作る */
+async function derive(secret, label) {
+  const raw = unb64u(secret);
+  if (raw.length !== 32) throw new Error('badkey');
+  const base = await crypto.subtle.importKey('raw', raw, 'HKDF', false, ['deriveKey', 'deriveBits']);
+  const p = info => ({ name: 'HKDF', hash: 'SHA-256', salt: SALT, info: tenc.encode('imadoko/v1/' + label + '/' + info) });
+  const aes = await crypto.subtle.deriveKey(p('key'), base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  const t = new Uint8Array(await crypto.subtle.deriveBits(p('topic'), base, 128));
+  return { aes, root: 'q/' + hex(t) };
+}
+const Seen = { all: new Set(), allQ: [], mine: new Set(), mineQ: [],
+  add(set, q, v) { set.add(v); q.push(v); if (q.length > 8000) set.delete(q.shift()); } };
+async function seal(ctx, topic, obj) {
+  const body = tenc.encode(JSON.stringify({ t: Date.now(), d: obj }));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: tenc.encode('imadoko1|' + topic) }, ctx.aes, body));
+  const out = new Uint8Array(13 + ct.length); out[0] = 1; out.set(iv, 1); out.set(ct, 13);
+  Seen.add(Seen.mine, Seen.mineQ, b64u(iv));
+  return b64u(out);
+}
+async function unseal(ctx, topic, wire) {
+  if (!/^[A-Za-z0-9_-]{40,}$/.test(wire)) throw new Error('format');
+  const b = unb64u(wire);
+  if (b[0] !== 1 || b.length < 29) throw new Error('format');
+  const iv = b.slice(1, 13);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: tenc.encode('imadoko1|' + topic) }, ctx.aes, b.slice(13));
+  const o = JSON.parse(tdec.decode(pt));
+  return { iv: b64u(iv), t: +o.t || 0, d: o.d };
+}
+
+/* ---------- 通信（無料の公開MQTTサーバー） ---------- */
+const BROKERS = { h: 'wss://broker.hivemq.com:8884/mqtt', e: 'wss://broker.emqx.io:8084/mqtt', c: 'wss://mqtt.eclipseprojects.io/mqtt' };
+const TEST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+const params = new URLSearchParams(location.search);
+if (TEST && params.get('broker')) BROKERS.t = params.get('broker');      // テスト用（自分のパソコンの中でだけ有効）
+const ORDER = BROKERS.t ? ['t'] : ['h', 'e', 'c'];
+const INVITE_SEC = (TEST && +params.get('invttl')) || 600;              // 招待は10分
+const KEEP_LOC = 12 * 3600, KEEP_NAME = 30 * 86400;                      // 位置は12時間、名簿は30日で自動で消える
+let client = null, BID = '', V5 = false;
+const hostOf = u => (String(u).match(/^wss?:\/\/([^/:]+)/) || [])[1] || u;
+function tryConnect(url, ver, ms) {
+  return new Promise((res, rej) => {
+    if (typeof mqtt === 'undefined') return rej(new Error('nolib'));
+    let done = false, c;
+    const fail = why => { if (done) return; done = true; clearTimeout(t); try { c.end(true); } catch (e) {} rej(new Error(why)); };
+    try { c = mqtt.connect(url, { clientId: 'c' + rid(14), clean: true, keepalive: 30, reconnectPeriod: 3000, connectTimeout: ms, protocolVersion: ver }); }
+    catch (e) { return rej(e); }
+    const t = setTimeout(() => fail('timeout'), ms + 300);
+    c.once('connect', () => { if (done) return; done = true; clearTimeout(t); res(c); });
+    c.on('error', e => { if (e && (e.code === 1 || e.code === 132)) fail('proto'); });
+    c.once('close', () => fail('closed'));
+  });
+}
+async function connectBroker(bid) {
+  const url = BROKERS[bid]; if (!url) throw new Error('nobroker');
+  let c;
+  try { c = await tryConnect(url, 5, 7000); }
+  catch (e) { if (e.message === 'timeout' || e.message === 'nolib') throw e; c = await tryConnect(url, 4, 7000); }
+  client = c; BID = bid; V5 = c.options.protocolVersion === 5;
+  c.on('message', onMsg);
+  c.on('offline', () => { $('#netPill').hidden = false; });
+  c.on('connect', () => { $('#netPill').hidden = true; if (GK) { c.subscribe(GK.root + '/#', { qos: 1 }); publishRoster(); forceSend = true; } });
+  return c;
+}
+const acks = new Set(), ownEmpty = {};
+let txChain = Promise.resolve(), rxChain = Promise.resolve();
+/* 送る：順番が入れかわらないように1つずつ暗号化して送る。obj が null なら「保存分を消す」合図 */
+function send(ctx, topic, obj, { retain = false, keep = 0, qos = 1 } = {}) {
+  if (!client) return Promise.resolve();
+  const c = client;
+  txChain = txChain.then(async () => {
+    const body = obj == null ? '' : await seal(ctx, topic, obj);
+    const o = { qos, retain };
+    if (retain && body && keep && V5) o.properties = { messageExpiryInterval: keep };
+    if (!body) ownEmpty[topic] = (ownEmpty[topic] || 0) + 1;
+    const ack = new Promise(r => c.publish(topic, body, o, () => r()));
+    acks.add(ack); ack.then(() => acks.delete(ack));
+    Log.tx(topic, obj, body);
+  }).catch(e => console.warn(e));
+  return txChain;
+}
+async function flush(ms = 3000) { await txChain; await Promise.race([Promise.all([...acks]), new Promise(r => setTimeout(r, ms))]); }
+function onMsg(topic, buf, packet) {
+  const raw = buf ? buf.toString() : '', retained = !!(packet && packet.retain);
+  rxChain = rxChain.then(() => handle(topic, raw, retained)).catch(e => console.warn(e));
+}
+
+/* ---------- グループの状態 ---------- */
+let G = store.get('group', null);   // { v, name, k, b, me:{id,name,joinedAt}, mode, meet, meetUntil, created }
+let GK = null;                       // { aes, root }
+const members = new Map();           // id -> { id, name, joinedAt, st:{mode,loc,t,meet}, rosterSeen }
+const saveG = () => store.set('group', G);
+const memberTopic = id => GK.root + '/m/' + id;
+const rosterTopic = id => GK.root + '/n/' + id;
+const eventTopic = () => GK.root + '/e';
+let syncedAt = 0;                    // 最初の受信が落ち着いた時刻（それより後に入った人を「新しく入った」と知らせる）
+
+async function handle(topic, raw, retained) {
+  if (inviteWait && topic === inviteWait.root) { inviteWait.got(raw); return; }
+  if (!GK || !topic.startsWith(GK.root + '/')) return;
+  const sub = topic.slice(GK.root.length + 1);
+  const m = sub === 'e' ? ['e', 'e', ''] : sub.match(/^([mn])\/([A-Z2-9]{16})$/);
+  if (!m) { Log.reject('bad', topic, raw); return; }
+  if (!raw) {
+    if (ownEmpty[topic] > 0) { ownEmpty[topic]--; return; }
+    Log.empty(topic);
+    const p = members.get(m[2]);
+    if (p && m[1] === 'm') p.st = null;
+    if (p && m[1] === 'n' && m[2] !== G.me.id) { members.delete(m[2]); Log.event((p.name || '？') + ' がグループから抜けた'); }
+    render(); return;
+  }
+  let o;
+  try { o = await unseal(GK, topic, raw); } catch (e) { Log.reject('bad', topic, raw); return; }
+  if (Seen.all.has(o.iv)) { if (!retained) Log.reject('dup', topic, raw); return; }   // つなぎ直した時の保存分の再配達は静かに無視
+  Seen.add(Seen.all, Seen.allQ, o.iv);
+  const own = Seen.mine.has(o.iv);
+  if (!retained && !own && Math.abs(Date.now() - o.t) > 10 * 60 * 1000) { Log.reject('old', topic, raw); return; }
+  const d = o.d || {};
+  if (!own) Log.rx(topic, d, raw);
+  if (m[1] === 'n') onRoster(m[2], d);
+  else if (m[1] === 'm') onMember(m[2], d, o.t);
+  else onEvent(d);
+  render();
+}
+function person(id) { let p = members.get(id); if (!p) { p = { id, name: '？', joinedAt: 0, st: null }; members.set(id, p); } return p; }
+function onRoster(id, d) {
+  if (d.id !== id) return;
+  const isNew = !members.has(id) || !members.get(id).rosterSeen;
+  const p = person(id);
+  const prevName = p.name;
+  p.name = clean(d.name, 12) || '？'; p.joinedAt = +d.joinedAt || 0; p.rosterSeen = true;
+  if (isNew && id !== G.me.id) {
+    if (syncedAt && Date.now() - syncedAt > 1500) { Log.event(p.name + ' が入った'); noticeNew(p); }
+    else if (Date.now() - p.joinedAt < 24 * 3600 * 1000) Log.event(p.name + ' が入った（' + ago(p.joinedAt) + '）');
+  } else if (prevName !== '？' && prevName !== p.name) Log.event(prevName + ' が名前を「' + p.name + '」に変えた');
+}
+function validLoc(l) {
+  if (!l || typeof l !== 'object') return null;
+  const lat = +l.lat, lon = +l.lon, acc = Math.max(1, Math.min(5000, +l.acc || 50));
+  if (!(lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180)) return null;
+  return { lat, lon, acc };
+}
+function onMember(id, d, t) {
+  if (d.id !== id) return;
+  const p = person(id);
+  if (p.st && p.st.t > t) return;                     // 古いものは使わない
+  if (!p.rosterSeen) p.name = clean(d.name, 12) || p.name;
+  p.st = { mode: d.mode === 'fuzzy' ? 'fuzzy' : 'on', loc: validLoc(d.loc), t, meet: !!d.meet };
+}
+function onEvent(d) {
+  if (d.type === 'join' && d.id !== G.me.id) { /* 名簿の到着で知らせる */ }
+}
+function noticeNew(p) {
+  const a = $('#newAlert');
+  a.textContent = '「' + p.name + '」が入ったよ。心当たりがなければ、グループを作り直そう（メンバーを外す機能は次の版で入れる）。タップで閉じる';
+  a.hidden = false;
+  toast(p.name + ' が入ったよ', 3500);
+}
+
+/* ---------- 自分の位置 ---------- */
+const Geo = { id: null, last: null, err: '', high: null,
+  start() {
+    if (!('geolocation' in navigator)) { this.err = 'このブラウザでは位置情報が使えない'; render(); return; }
+    const high = !!(G && G.meet);
+    if (this.id != null && this.high === high) return;
+    this.stop(); this.high = high;
+    this.id = navigator.geolocation.watchPosition(p => this.fix(p), e => this.fail(e), { enableHighAccuracy: high, maximumAge: high ? 5000 : 60000, timeout: 30000 });
+  },
+  stop() { if (this.id != null) navigator.geolocation.clearWatch(this.id); this.id = null; this.high = null; },
+  fix(p) { this.last = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, t: Date.now() }; this.err = ''; tick(); render(); },
+  fail(e) { this.err = e && e.code === 1 ? '位置情報の利用が許可されてないよ。iPhoneの「設定」→「プライバシーとセキュリティ」→「位置情報サービス」→「Safari」で「使用中のみ」にしてね' : '位置がとれない。屋内なら窓の近くで試してみて'; render(); }
+};
+/* あいまい：世界共通の約1kmのマス目の真ん中に置きかえる（送るたびに少しずつずらす方式だと、平均すると本当の位置がわかってしまうため） */
+function fuzz(p) {
+  const step = 0.009;                                   // 緯度で約1km
+  const row = Math.floor(p.lat / step);
+  const lat = (row + 0.5) * step;
+  const stepLon = step / Math.max(0.2, Math.cos(lat * Math.PI / 180));
+  const lon = (Math.floor(p.lon / stepLon) + 0.5) * stepLon;
+  return { lat: +lat.toFixed(5), lon: +lon.toFixed(5), acc: 1000 };
+}
+const exact = p => ({ lat: +p.lat.toFixed(5), lon: +p.lon.toFixed(5), acc: Math.round(Math.min(5000, p.acc) / 5) * 5 || 5 });
+let sentAt = 0, forceSend = false;
+function tick() {
+  if (!G || !GK || !client || !G.mode) return;
+  if (G.meet && Date.now() > (G.meetUntil || 0)) { G.meet = false; saveG(); Geo.start(); toast('合流モードを終わったよ（30分たったから）'); forceSend = true; }
+  if (G.mode === 'off' || !Geo.last) return;
+  const every = G.meet ? 10 * 1000 : 5 * 60 * 1000;
+  if (forceSend || Date.now() - sentAt >= every) { forceSend = false; sendMe(); }
+}
+setInterval(() => { tick(); render(); }, 1000);
+function sendMe() {
+  if (!Geo.last || G.mode === 'off') return;
+  sentAt = Date.now();
+  const st = { v: 1, id: G.me.id, name: G.me.name, mode: G.mode, loc: G.mode === 'fuzzy' ? fuzz(Geo.last) : exact(Geo.last), meet: !!G.meet };
+  send(GK, memberTopic(G.me.id), st, { retain: true, keep: KEEP_LOC });
+}
+function publishRoster() { if (G && GK) send(GK, rosterTopic(G.me.id), { v: 1, id: G.me.id, name: G.me.name, joinedAt: G.me.joinedAt }, { retain: true, keep: KEEP_NAME }); }
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { forceSend = true; if (G && G.mode && G.mode !== 'off') Geo.start(); } });
+
+/* ---------- グループを作る・入る ---------- */
+async function useGroup() {
+  GK = await derive(G.k, 'group');
+  members.clear(); syncedAt = 0;
+  person(G.me.id).name = G.me.name; members.get(G.me.id).joinedAt = G.me.joinedAt; members.get(G.me.id).rosterSeen = true;
+  client.subscribe(GK.root + '/#', { qos: 1 });
+  setTimeout(() => { syncedAt = Date.now(); }, 2500);
+  publishRoster();
+}
+$('#goCreate').addEventListener('click', () => { $('#cName').value = store.get('name', ''); show('sCreate'); });
+$('#createBtn').addEventListener('click', async () => {
+  const gname = clean($('#cGroup').value, 16), name = clean($('#cName').value, 12);
+  if (!gname) { toast('グループの名前を入れてね'); return; }
+  if (!name) { toast('あなたの名前を入れてね'); return; }
+  const st = $('#createStatus'); st.className = 'status'; st.textContent = 'つないでるよ…';
+  $('#createBtn').disabled = true;
+  let ok = false;
+  for (const b of ORDER) { try { await connectBroker(b); ok = true; break; } catch (e) {} }
+  $('#createBtn').disabled = false;
+  if (!ok) { st.className = 'status ng'; st.textContent = 'つながらなかった。電波を確認してもう一度ためしてね'; return; }
+  store.set('name', name);
+  G = { v: 1, name: gname, k: newSecret(), b: BID, me: { id: rid(16), name, joinedAt: Date.now() }, mode: null, meet: false, created: Date.now() };
+  saveG(); await useGroup();
+  st.textContent = '';
+  openConsent();
+});
+
+/* 招待リンク：…/#i1.<サーバー>.<招待の秘密>。秘密から、招待の置き場所と鍵を作る */
+const INV_RE = /#?i1\.([a-z])\.([A-Za-z0-9_-]{43})(?![A-Za-z0-9_-])/;
+let inviteWait = null, pendingInvite = null;
+async function readInvite(bid, secret) {
+  const st = $('#joinStatus'); st.className = 'status'; st.textContent = '招待を確かめてるよ…';
+  $('#jLinkField').hidden = true; show('sJoin');
+  try { if (!client || BID !== bid) { if (client) { try { client.end(true); } catch (e) {} client = null; } await connectBroker(bid); } }
+  catch (e) { st.className = 'status ng'; st.textContent = 'つながらなかった。電波を確認してもう一度ためしてね'; $('#jLinkField').hidden = false; return; }
+  const IK = await derive(secret, 'invite');
+  const raw = await new Promise(res => {
+    const timer = setTimeout(() => res(''), 7000);
+    inviteWait = { root: IK.root, got: r => { if (r) { clearTimeout(timer); res(r); } } };
+    client.subscribe(IK.root, { qos: 1 });
+  });
+  client.unsubscribe(IK.root); inviteWait = null;
+  let pkg = null;
+  if (raw) { try { pkg = (await unseal(IK, IK.root, raw)).d; } catch (e) { pkg = null; } }
+  if (!pkg || !pkg.k || Date.now() > +pkg.exp) {
+    st.className = 'status ng'; st.textContent = 'この招待リンクは使えないみたい。10分の期限が切れたか、リンクがちがう。もう一度作ってもらってね';
+    $('#jLinkField').hidden = false; $('#jInfo').hidden = true; $('#jNameField').hidden = true; $('#joinBtn').hidden = true; return;
+  }
+  pendingInvite = { bid, pkg };
+  $('#jTitle').textContent = '招待が届いてるよ';
+  $('#jBy').textContent = clean(pkg.by, 12) || '？'; $('#jGroup').textContent = clean(pkg.name, 16) || '？';
+  $('#jLeft').textContent = 'このリンクはあと ' + Math.max(0, Math.ceil((pkg.exp - Date.now()) / 60000)) + '分くらいで使えなくなる';
+  $('#jInfo').hidden = false; $('#jNameField').hidden = false; $('#joinBtn').hidden = false;
+  $('#jName').value = store.get('name', '');
+  st.textContent = '';
+}
+$('#goJoin').addEventListener('click', () => { $('#jInfo').hidden = true; $('#jNameField').hidden = true; $('#joinBtn').hidden = true; $('#jLinkField').hidden = false; $('#jTitle').textContent = '招待リンクを貼り付けてね'; $('#joinStatus').textContent = ''; show('sJoin'); });
+$('#jCheck').addEventListener('click', () => {
+  const m = $('#jLink').value.match(INV_RE);
+  if (!m || !BROKERS[m[1]]) { toast('招待リンクが見つからない。LINEのメッセージをまるごと貼ってもOKだよ', 3500); return; }
+  $('#jLink').value = '';
+  readInvite(m[1], m[2]);
+});
+$('#joinBtn').addEventListener('click', async () => {
+  if (!pendingInvite) return;
+  if (Date.now() > +pendingInvite.pkg.exp) { toast('招待の期限が切れちゃった。もう一度作ってもらってね', 3500); return; }
+  const name = clean($('#jName').value, 12);
+  if (!name) { toast('あなたの名前を入れてね'); return; }
+  store.set('name', name);
+  const pkg = pendingInvite.pkg; pendingInvite = null;
+  G = { v: 1, name: clean(pkg.name, 16), k: pkg.k, b: BID, me: { id: rid(16), name, joinedAt: Date.now() }, mode: null, meet: false, created: Date.now() };
+  try { await derive(G.k, 'group'); } catch (e) { toast('招待の中身がこわれてるみたい'); G = null; return; }
+  saveG(); await useGroup();
+  send(GK, eventTopic(), { type: 'join', id: G.me.id, name: G.me.name });
+  openConsent();
+});
+
+/* ---------- はじめての共有（本人が決める） ---------- */
+function openConsent() { $('#consentGroup').textContent = 'グループ「' + G.name + '」'; show('sConsent'); }
+$('#consentBtn').addEventListener('click', () => {
+  const v = ($('input[name="mode"]:checked') || {}).value || 'on';
+  setMode(v, true);
+  show('sMain'); render();
+});
+function setMode(m, first) {
+  const prev = G.mode;
+  G.mode = m; saveG();
+  if (m === 'off') { Geo.stop(); Geo.last = null; }
+  else { Geo.start(); forceSend = true; tick(); }
+  if (!first && prev !== m) toast(m === 'on' ? '正確に見せるよ' : m === 'fuzzy' ? 'あいまい（約1km）にしたよ' : 'オフにしたよ。最後の位置は「◯分前」として残る。すぐ消したい時は設定から', 3200);
+  render();
+}
+$$('.modes button').forEach(b => b.addEventListener('click', () => { if (G.mode !== b.dataset.m) setMode(b.dataset.m); }));
+$('#meetBtn').addEventListener('click', () => {
+  if (G.mode === 'off') { toast('オフの間は合流モードは使えないよ'); return; }
+  G.meet = !G.meet; G.meetUntil = G.meet ? Date.now() + 30 * 60 * 1000 : 0; saveG();
+  Geo.start(); forceSend = true; tick(); render();
+});
+
+/* ---------- 招待リンクを作る ---------- */
+$('#inviteBtn').addEventListener('click', async () => {
+  const secret = newSecret(), IK = await derive(secret, 'invite');
+  const exp = Date.now() + INVITE_SEC * 1000;
+  await send(IK, IK.root, { v: 1, k: G.k, name: G.name, by: G.me.name, exp }, { retain: true, keep: INVITE_SEC });
+  setTimeout(() => { if (client) send(IK, IK.root, null, { retain: true }); }, INVITE_SEC * 1000);  // 期限が来たらサーバーからも消す
+  const link = location.href.split('#')[0].split('?')[0] + '?openExternalBrowser=1#i1.' + BID + '.' + secret;
+  const text = '「' + G.name + '」の位置共有に招待するよ（10分で使えなくなる）\n' + link;
+  const left = h('p', { class: 'timer' }, '10:00');
+  const box = h('textarea', { class: 'textarea', readonly: true, 'aria-label': '招待リンク' }); box.value = text;
+  const body = h('div', { class: 'stack', style: 'display:flex;flex-direction:column;gap:10px' },
+    h('p', { class: 'm0' }, 'このリンクをLINEで送ってね。タップした人は、名前を入れるだけでグループに入れる。'),
+    left, box,
+    h('div', { class: 'row' },
+      h('button', { class: 'btn primary', type: 'button', onclick: async () => { try { await navigator.share({ text }); } catch (e) {} } }, 'LINEなどで送る'),
+      h('button', { class: 'btn', type: 'button', onclick: async () => { try { await navigator.clipboard.writeText(text); toast('コピーしたよ'); } catch (e) { box.select(); } } }, 'コピー')),
+    h('p', { class: 'alert' }, 'リンクを知ってる人は、10分の間だけ誰でも入れる。グループの外には出さないでね。誰かが入ると、全員の画面に名前が出るよ。'));
+  const close = sheet('招待リンク', body);
+  const iv = setInterval(() => {
+    const s = Math.max(0, Math.ceil((exp - Date.now()) / 1000));
+    left.textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    if (!s) { clearInterval(iv); left.textContent = '期限切れ'; box.value = '（このリンクはもう使えない）'; }
+    if (!left.isConnected) clearInterval(iv);
+  }, 500);
+});
+
+/* ---------- 設定 ---------- */
+let wakeLock = null, wantWake = false;
+async function setWake(on) {
+  wantWake = on;
+  try { if (on) { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); else toast('このiPhoneでは使えないみたい'); } else if (wakeLock) { await wakeLock.release(); wakeLock = null; } } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && wantWake) setWake(true); });
+$('#settingsBtn').addEventListener('click', () => {
+  let close;
+  const body = h('div', { style: 'display:flex;flex-direction:column;gap:10px' },
+    h('button', { class: 'btn wide', type: 'button', onclick: () => { setWake(!wantWake); close(); toast(wantWake ? '画面をつけたままにするよ' : '元にもどしたよ'); } }, wantWake ? '画面をつけたままにする：オン' : '画面をつけたままにする：オフ'),
+    h('p', { class: 'hint' }, 'Web版は画面を消すと共有が止まる。合流する時はオンにしておくと便利（電池は減りやすい）。'),
+    h('button', { class: 'btn wide', type: 'button', onclick: async () => {
+      close();
+      if (!(await ask('今の位置をサーバーから消して、オフにする？ほかの人の画面からも消えるよ', { ok: '消してオフにする', danger: true }))) return;
+      send(GK, memberTopic(G.me.id), null, { retain: true }); setMode('off', true); toast('位置を消して、オフにしたよ');
+    } }, '今の位置をすぐ消す'),
+    h('button', { class: 'btn wide', type: 'button', onclick: async () => {
+      close();
+      if (!(await ask('グループ「' + G.name + '」を抜ける？自分の名前と位置をサーバーから消して、このスマホの鍵も消すよ', { ok: '抜ける', danger: true }))) return;
+      await leaveGroup();
+    } }, 'グループを抜ける'),
+    h('p', { class: 'hint' }, '抜けると、このスマホからはもう見られない。また入るには招待してもらう。'));
+  close = sheet('設定', body);
+});
+async function leaveGroup() {
+  if (G && GK && client) {
+    send(GK, eventTopic(), { type: 'leave', id: G.me.id, name: G.me.name });
+    send(GK, memberTopic(G.me.id), null, { retain: true });
+    send(GK, rosterTopic(G.me.id), null, { retain: true });
+    await flush();
+  }
+  Geo.stop(); store.del('group'); G = null; GK = null;
+  try { client && client.end(true); } catch (e) {}
+  location.replace(location.pathname + location.search);   // 読み直してメモリの中も消す
+}
+
+/* ---------- 通信ログ（このスマホのメモリの中だけ） ---------- */
+const Log = { list: [], events: [], st: { tx: 0, txB: 0, rx: 0, rxB: 0, bad: 0, dup: 0, old: 0, del: 0 }, view: null, mode: 'plain', warned: false, timer: 0,
+  kind(topic) { if (!GK || !topic.startsWith(GK.root)) return '招待'; const s = topic.slice(GK.root.length + 1); return s[0] === 'm' ? '位置' : s[0] === 'n' ? '名簿' : s === 'e' ? 'お知らせ' : '不明'; },
+  who(topic) { const m = GK && topic.match(/\/[mn]\/([A-Z2-9]{16})$/); return m ? ((members.get(m[1]) || {}).name || '？') : ''; },
+  wire(w) { return !w ? '（中身なし：サーバーの保存分を消す合図）' : w.length > 72 ? w.slice(0, 72) + '…（全部で' + w.length + '文字）' : w; },
+  push(e) { this.list.unshift(e); if (this.list.length > 300) this.list.pop(); this.refresh(); },
+  tx(topic, obj, w) { this.st.tx++; this.st.txB += w.length; this.push({ at: Date.now(), dir: 'tx', k: this.kind(topic), who: '自分', sum: summarize(topic, obj), wire: this.wire(w) }); },
+  rx(topic, d, w) { this.st.rx++; this.st.rxB += w.length; this.push({ at: Date.now(), dir: 'rx', k: this.kind(topic), who: this.who(topic) || clean(d.name, 12), sum: summarize(topic, d), wire: this.wire(w) }); },
+  empty(topic) { this.st.del++; this.push({ at: Date.now(), dir: 'rx', k: this.kind(topic), who: this.who(topic), sum: 'サーバーの保存分を消す合図', wire: this.wire('') }); },
+  reject(type, topic, w) {
+    this.st[type]++;
+    this.push({ at: Date.now(), dir: 'ng', k: this.kind(topic), who: '', sum: { bad: '開けなかった（鍵がちがう・書きかえられた・グループの外から）', dup: '同じメッセージが2回届いた（2回目は無視）', old: '10分以上前のメッセージ（無視）' }[type], wire: this.wire(w) });
+    if (type === 'bad' && !this.warned) { this.warned = true; toast('読めないメッセージが届いたから無視したよ。くわしくはログで', 3500); }
+  },
+  event(text) { this.events.unshift({ at: Date.now(), text }); if (this.events.length > 100) this.events.pop(); this.refresh(); },
+  refresh() { if (!this.view || !this.view.isConnected) { this.view = null; return; } if (!this.timer) this.timer = setTimeout(() => { this.timer = 0; renderLog(); }, 400); }
+};
+function summarize(topic, d) {
+  if (d == null) return 'サーバーの保存分を消した';
+  const k = Log.kind(topic);
+  if (k === '位置') return (d.mode === 'fuzzy' ? 'あいまいな位置（約1km）' : '正確な位置') + (d.meet ? '・合流モード' : '');
+  if (k === '名簿') return '名前「' + clean(d.name, 12) + '」';
+  if (k === 'お知らせ') return d.type === 'join' ? '入った' : d.type === 'leave' ? '抜けた' : 'お知らせ';
+  if (k === '招待') return '招待（グループの鍵を、招待の鍵で包んだもの・10分で消える）';
+  return '';
+}
+function openLog() {
+  if (!GK) return;
+  const body = h('div', { style: 'display:flex;flex-direction:column;gap:12px' });
+  sheet('通信ログ', body); Log.view = body; renderLog();
+}
+function renderLog() {
+  const v = Log.view; if (!v || !v.isConnected) { Log.view = null; return; }
+  const st = Log.st, kb = n => (n / 1024).toFixed(1) + 'KB';
+  v.textContent = '';
+  const mbtn = (val, label) => h('button', { type: 'button', 'aria-pressed': String(Log.mode === val), onclick: () => { Log.mode = val; renderLog(); } }, label);
+  const list = h('ul', { class: 'loglist' });
+  Log.list.slice(0, 120).forEach(e => list.append(h('li', { class: e.dir }, h('span', { class: 'tm' }, new Date(e.at).toTimeString().slice(0, 8)),
+    h('span', { class: 'dir' }, e.dir === 'tx' ? '送信' : e.dir === 'rx' ? '受信' : 'はじいた'),
+    h('div', {}, h('div', { class: 'k' }, e.k + (e.who ? '・' + e.who : '')), Log.mode === 'wire' ? h('div', { class: 'wire' }, e.wire) : h('div', {}, e.sum)))));
+  const ev = h('ul', { class: 'loglist ev' });
+  Log.events.forEach(e => ev.append(h('li', {}, h('span', { class: 'tm' }, new Date(e.at).toTimeString().slice(0, 8)), h('span', {}, e.text))));
+  const on = h('p', { class: 'on' }); on.innerHTML = LOCK_SVG + ' 暗号化：オン（AES-GCM 256bit）';
+  v.append(
+    h('div', { class: 'secbox' }, on,
+      h('dl', { class: 'kv' },
+        h('dt', {}, '鍵の場所'), h('dd', {}, 'グループのメンバーのスマホの中だけ。招待リンクの「#」より後ろで受け渡すから、サーバーにもGitHubにも届かない'),
+        h('dt', {}, '中継サーバー'), h('dd', {}, hostOf(BROKERS[BID]) + '（無料の公開サーバー・MQTT ' + (V5 ? '5' : '3.1.1') + '）'),
+        h('dt', {}, 'サーバーでの置き場所'), h('dd', { class: 'mono' }, GK.root + '/…（鍵から作った、意味のない名前）'),
+        h('dt', {}, 'サーバーに置く時間'), h('dd', {}, V5 ? '位置は12時間、名簿は30日で自動で消える。招待は10分' : 'このサーバーは自動で消す仕組みがないから、抜ける時に消す'),
+        h('dt', {}, 'サーバーに見える物'), h('dd', {}, '意味のない文字の並び・大きさ・時刻・接続元のIPアドレス'))),
+    h('p', { class: 'verdict' + (st.bad ? ' warn' : '') }, st.bad ? '⚠ 開けないメッセージを ' + st.bad + '件はじいた。グループの外からの書き込みかも。鍵がないと中身は作れないから、影響はないよ' : 'グループの外からの書き込み：なし'),
+    h('div', { class: 'stats' }, h('div', {}, h('b', {}, st.tx), '送った（' + kb(st.txB) + '）'), h('div', {}, h('b', {}, st.rx), '受け取った（' + kb(st.rxB) + '）'), h('div', {}, h('b', {}, st.bad + st.dup + st.old), 'はじいた')),
+    h('p', { class: 'hint' }, '内訳：開けない ' + st.bad + '・重複 ' + st.dup + '・古い ' + st.old + '　／　保存分を消す合図 ' + st.del),
+    h('b', {}, '出入りの記録'), Log.events.length ? ev : h('p', { class: 'hint' }, 'まだないよ'),
+    h('b', {}, '通信の記録（新しい順）'),
+    h('div', { class: 'seg2' }, mbtn('plain', 'スマホの中の中身'), mbtn('wire', 'サーバーから見える形')),
+    h('p', { class: 'hint' }, Log.mode === 'wire' ? 'サーバーや、のぞき見した人にはこう見える。鍵がないと意味のない文字の並び。' : '自分のスマホで鍵を使って開けた中身（位置の数字はここにも出さない）。'),
+    Log.list.length ? list : h('p', { class: 'hint' }, 'まだないよ'),
+    h('p', { class: 'hint' }, 'この記録はこのスマホのメモリの中だけ。どこにも送らないし、ページを閉じると消える。'));
+}
+$('#logBtn').addEventListener('click', openLog);
+$('#newAlert').addEventListener('click', () => { $('#newAlert').hidden = true; });
+$('#logBtn2').addEventListener('click', openLog);
+
+/* ---------- 画面：レーダーと一覧 ---------- */
+const DIRS = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+const R_EARTH = 6371000, rad = x => x * Math.PI / 180;
+function distM(a, b) { const dl = rad(b.lat - a.lat), dn = rad(b.lon - a.lon); const s = Math.sin(dl / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dn / 2) ** 2; return 2 * R_EARTH * Math.asin(Math.min(1, Math.sqrt(s))); }
+function bearing(a, b) { const y = Math.sin(rad(b.lon - a.lon)) * Math.cos(rad(b.lat)); const x = Math.cos(rad(a.lat)) * Math.sin(rad(b.lat)) - Math.sin(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(rad(b.lon - a.lon)); return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360; }
+const fmtD = m => m < 1000 ? Math.round(m / 10) * 10 + 'm' : m < 10000 ? (m / 1000).toFixed(1) + 'km' : Math.round(m / 1000) + 'km';
+const colorOf = id => { let x = 0; for (const c of id) x = (x * 31 + c.charCodeAt(0)) >>> 0; return 'hsl(' + (x % 360) + ' 80% 60%)'; };
+const SCALES = [200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 300000, 1000000];
+let zoom = 'auto';
+const visible = p => p.st && p.st.loc && Date.now() - p.st.t < KEEP_LOC * 1000;
+function center() {
+  if (G && G.mode !== 'off' && Geo.last) return { lat: Geo.last.lat, lon: Geo.last.lon, me: true };
+  const ps = [...members.values()].filter(p => p.id !== (G && G.me.id) && visible(p));
+  if (!ps.length) return null;
+  return { lat: ps.reduce((s, p) => s + p.st.loc.lat, 0) / ps.length, lon: ps.reduce((s, p) => s + p.st.loc.lon, 0) / ps.length, me: false };
+}
+function drawRadar() {
+  const cv = $('#radar'), box = cv.getBoundingClientRect(), dpr = Math.min(3, window.devicePixelRatio || 1);
+  const W = Math.round(box.width * dpr); if (!W) return;
+  if (cv.width !== W) { cv.width = W; cv.height = W; }
+  const x = cv.getContext('2d'), c = W / 2, R = W / 2 - 28 * dpr;
+  x.clearRect(0, 0, W, W);
+  const css = getComputedStyle(document.documentElement);
+  const lineC = css.getPropertyValue('--radar-line').trim(), fgC = css.getPropertyValue('--radar-fg').trim();
+  const ctr = center();
+  const others = [...members.values()].filter(p => p.id !== G.me.id && visible(p));
+  let scale = SCALES[SCALES.length - 1];
+  if (ctr) {
+    const far = Math.max(0, ...others.map(p => distM(ctr, p.st.loc) + (p.st.mode === 'fuzzy' ? 700 : 0)));
+    const auto = SCALES.find(s => s >= far * 1.15) || SCALES[SCALES.length - 1];
+    scale = zoom === 'auto' ? auto : zoom;
+  }
+  // 輪と十字
+  x.strokeStyle = lineC; x.lineWidth = 1 * dpr; x.fillStyle = fgC; x.font = (11 * dpr) + 'px system-ui'; x.textAlign = 'right'; x.textBaseline = 'top';
+  for (let i = 1; i <= 4; i++) { x.beginPath(); x.arc(c, c, R * i / 4, 0, Math.PI * 2); x.stroke(); x.globalAlpha = .7; x.fillText(fmtD(scale * i / 4), c + R * i / 4 - 3 * dpr, c + 3 * dpr); x.globalAlpha = 1; }
+  x.beginPath(); x.moveTo(c - R, c); x.lineTo(c + R, c); x.moveTo(c, c - R); x.lineTo(c, c + R); x.stroke();
+  x.font = 'bold ' + (13 * dpr) + 'px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('北', c, c - R - 13 * dpr);
+  if (!ctr) { $('#radarNote').textContent = 'まだ誰の位置も届いてないよ'; return; }
+  $('#radarNote').textContent = ctr.me ? '自分を中心に表示（上が北）' : 'オフの間は自分の位置を使わないから、メンバーの真ん中を中心に表示';
+  const k = R / scale;
+  const pt = p => { const dx = rad(p.lon - ctr.lon) * R_EARTH * Math.cos(rad(ctr.lat)), dy = rad(p.lat - ctr.lat) * R_EARTH; return [c + dx * k, c - dy * k]; };
+  // 自分
+  if (ctr.me) {
+    const ar = Math.min(R, Geo.last.acc * k);
+    x.fillStyle = 'rgba(59,130,246,.18)'; x.beginPath(); x.arc(c, c, Math.max(ar, 0), 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#3b82f6'; x.strokeStyle = '#fff'; x.lineWidth = 3 * dpr; x.beginPath(); x.arc(c, c, 8 * dpr, 0, Math.PI * 2); x.fill(); x.stroke();
+  }
+  // メンバー
+  others.forEach(p => {
+    let [px, py] = pt(p.st.loc);
+    const col = colorOf(p.id), stale = Date.now() - p.st.t > 15 * 60 * 1000;
+    const dx = px - c, dy = py - c, d = Math.hypot(dx, dy);
+    x.globalAlpha = stale ? .45 : 1;
+    if (d > R) {                                           // 範囲の外：ふちに矢印
+      const ex = c + dx / d * (R - 4 * dpr), ey = c + dy / d * (R - 4 * dpr), ang = Math.atan2(dy, dx);
+      x.fillStyle = col; x.beginPath(); x.moveTo(ex + Math.cos(ang) * 10 * dpr, ey + Math.sin(ang) * 10 * dpr);
+      x.lineTo(ex + Math.cos(ang + 2.5) * 9 * dpr, ey + Math.sin(ang + 2.5) * 9 * dpr); x.lineTo(ex + Math.cos(ang - 2.5) * 9 * dpr, ey + Math.sin(ang - 2.5) * 9 * dpr); x.fill();
+      px = ex - dx / d * 18 * dpr; py = ey - dy / d * 18 * dpr;
+    } else {
+      if (p.st.mode === 'fuzzy') { x.fillStyle = col; x.globalAlpha = (stale ? .45 : 1) * .22; x.beginPath(); x.arc(px, py, Math.max(12 * dpr, 1000 * k), 0, Math.PI * 2); x.fill(); x.globalAlpha = stale ? .45 : 1; }
+      x.fillStyle = col; x.strokeStyle = '#0f1b2d'; x.lineWidth = 2 * dpr; x.beginPath(); x.arc(px, py, (p.st.mode === 'fuzzy' ? 5 : 7) * dpr, 0, Math.PI * 2); x.fill(); x.stroke();
+    }
+    // 名前の札
+    x.font = 'bold ' + (12 * dpr) + 'px system-ui'; x.textAlign = 'center'; x.textBaseline = 'bottom';
+    const label = p.name + (stale ? '（' + ago(p.st.t) + '）' : ''), tw = x.measureText(label).width + 10 * dpr;
+    const lx = Math.min(W - tw / 2 - 2, Math.max(tw / 2 + 2, px)), ly = Math.max(20 * dpr, py - 10 * dpr);
+    x.fillStyle = 'rgba(10,20,35,.8)'; x.fillRect(lx - tw / 2, ly - 17 * dpr, tw, 17 * dpr);
+    x.fillStyle = '#fff'; x.fillText(label, lx, ly - 2 * dpr);
+    x.globalAlpha = 1;
+  });
+}
+$('#zIn').addEventListener('click', () => { const cur = zoom === 'auto' ? currentAuto() : zoom; zoom = SCALES[Math.max(0, SCALES.indexOf(cur) - 1)] || cur; render(); });
+$('#zOut').addEventListener('click', () => { const cur = zoom === 'auto' ? currentAuto() : zoom; zoom = SCALES[Math.min(SCALES.length - 1, SCALES.indexOf(cur) + 1)] || cur; render(); });
+$('#zAuto').addEventListener('click', () => { zoom = 'auto'; render(); });
+function currentAuto() { const ctr = center(); if (!ctr) return 1000; const far = Math.max(0, ...[...members.values()].filter(p => p.id !== G.me.id && visible(p)).map(p => distM(ctr, p.st.loc))); return SCALES.find(s => s >= far * 1.15) || SCALES[SCALES.length - 1]; }
+
+let rTimer = 0;
+function render() { if (rTimer) return; rTimer = requestAnimationFrame(() => { rTimer = 0; renderNow(); }); }
+function renderNow() {
+  if (!G || $('#sMain').hidden) return;
+  // いつも見える状態の帯
+  const bar = $('#stateBar'); bar.className = 'statebar ' + (G.mode || 'off');
+  $$('.modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === G.mode)));
+  const meetLeft = G.meet ? Math.max(0, Math.ceil(((G.meetUntil || 0) - Date.now()) / 60000)) : 0;
+  $('#stateText').textContent = G.mode === 'on' ? '共有中：正確' : G.mode === 'fuzzy' ? '共有中：あいまい（約1km）' : '共有してない（オフ）';
+  $('#stateSub').textContent = G.mode === 'off' ? '自分の位置は使ってないし、送ってない。ほかの人が見せてる分は見える' :
+    (G.meet ? '合流モード：10秒ごとに送る（あと' + meetLeft + '分）' : '5分ごとに送る') + '　／　最後に送った：' + (sentAt ? ago(sentAt) : 'まだ');
+  $('#geoErr').hidden = !Geo.err || G.mode === 'off'; $('#geoErr').textContent = Geo.err;
+  const mb = $('#meetBtn'); mb.setAttribute('aria-pressed', String(!!G.meet)); mb.textContent = G.meet ? 'オン（あと' + meetLeft + '分）' : 'オンにする'; mb.disabled = G.mode === 'off';
+  // 一覧
+  const ctr = center();
+  const list = [...members.values()].sort((a, b) => (a.id === G.me.id ? -1 : b.id === G.me.id ? 1 : (visible(b) - visible(a)) || a.name.localeCompare(b.name, 'ja')));
+  $('#peopleTitle').textContent = 'メンバー（' + list.length + '人）・グループ「' + G.name + '」';
+  const ul = $('#people'); ul.textContent = '';
+  list.forEach(p => {
+    const mine = p.id === G.me.id, v = visible(p), stale = v && Date.now() - p.st.t > 15 * 60 * 1000;
+    const isNew = !mine && p.joinedAt && Date.now() - p.joinedAt < 24 * 3600 * 1000;
+    let dist = '', meta = '';
+    if (mine) { dist = ''; meta = G.mode === 'off' ? 'オフ' : (G.mode === 'fuzzy' ? 'あいまいで見せてる' : '正確に見せてる') + '・最後に送った ' + (sentAt ? ago(sentAt) : 'まだ'); }
+    else if (!v) meta = '位置はまだ届いてない';
+    else {
+      meta = (p.st.mode === 'fuzzy' ? 'あいまい（約1km）' : '正確') + '・' + ago(p.st.t);
+      if (ctr && ctr.me) { const dm = distM(ctr, p.st.loc); dist = dm < 30 && p.st.mode !== 'fuzzy' ? 'すぐ近く' : DIRS[Math.round(bearing(ctr, p.st.loc) / 45) % 8] + ' ' + (p.st.mode === 'fuzzy' ? '約' : '') + fmtD(dm); }
+    }
+    ul.append(h('li', { class: stale ? 'stale' : '' },
+      h('span', { class: 'pc', style: 'background:' + (mine ? '#3b82f6' : colorOf(p.id)) }),
+      h('div', {}, h('div', { class: 'nm' }, p.name + (mine ? '（自分）' : ''), isNew ? h('span', { class: 'badge new' }, '新しく入った') : null,
+          v && p.st.mode === 'fuzzy' ? h('span', { class: 'badge fz' }, 'あいまい') : null, v && p.st.meet && !stale ? h('span', { class: 'badge mt' }, '合流モード') : null),
+        h('div', { class: 'meta' }, meta)),
+      h('div', { class: 'dist' }, dist)));
+  });
+  drawRadar();
+}
+window.addEventListener('resize', render);
+
+/* ---------- 起動 ---------- */
+$$('[data-home]').forEach(b => b.addEventListener('click', () => { if (G && G.mode) { show('sMain'); render(); } else show('sHome'); }));
+async function resume() {
+  try { await connectBroker(G.b); } catch (e) { toast('つながらなかった。電波を確認してね', 3500); $('#netPill').hidden = false; setTimeout(resume, 8000); return; }
+  await useGroup();
+  if (!G.mode) { openConsent(); return; }
+  setMode(G.mode, true); show('sMain'); render();
+}
+(function boot() {
+  const hash = location.hash || '';
+  if (hash.length > 1) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }   // 招待の秘密をアドレスバーと履歴に残さない
+  if (!window.crypto || !crypto.subtle) { show('sHome'); $('#goCreate').disabled = $('#goJoin').disabled = true; toast('このブラウザでは暗号化が使えない。Safariで開いてね', 5000); return; }
+  const m = hash.match(INV_RE);
+  if (G && G.k) {
+    if (m) toast('もうグループに入ってるよ。別のグループに入るには、いまのグループを抜けてね', 4500);
+    resume(); return;
+  }
+  if (m && BROKERS[m[1]]) { readInvite(m[1], m[2]); return; }
+  show('sHome');
+})();
+</script>
+</body>
+</html>
