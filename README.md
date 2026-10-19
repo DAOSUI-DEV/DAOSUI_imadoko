@@ -175,7 +175,7 @@
 | `index.html` | アプリ本体（画面・暗号・通信を1つのファイルに入れている） |
 | `mqtt.min.js` | 中継サーバーと話すためのライブラリ（mqtt.js 5.15.1、MITライセンス） |
 | `mqtt.LICENSE.txt` | mqtt.js のライセンス |
-| `maplibre-gl.mjs` ほか3つ | 地図を表示する部品（MapLibre GL JS 6.11.2、BSD-3-Clause） |
+| `maplibre-gl.js` ほか3つ | 地図を表示する部品（MapLibre GL JS 6.11.2、BSD-3-Clause） |
 | `maplibre.LICENSE.txt` | MapLibre GL JS のライセンス |
 | `.nojekyll` | GitHub Pages がファイルをそのまま出すための印 |
 
@@ -207,5 +207,5 @@ Settings → Pages → Source を「Deploy from a branch」、Branch を `main` 
 
 ## ライセンス
 - `mqtt.min.js`：mqtt.js 5.15.1（MIT、`mqtt.LICENSE.txt`）
-- `maplibre-gl*.mjs`・`maplibre-gl.css`：MapLibre GL JS 6.11.2（BSD-3-Clause、`maplibre.LICENSE.txt`）
+- `maplibre-gl*.js`・`maplibre-gl.css`：MapLibre GL JS 6.11.2（BSD-3-Clause、`maplibre.LICENSE.txt`）
 - 地図：© OpenStreetMap contributors、© OpenMapTiles、OpenFreeMap
