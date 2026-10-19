@@ -83,9 +83,9 @@ h2{margin:0;font-size:22px;line-height:1.35}
 
 /* レーダー */
 .radar-box{position:relative;background:var(--radar-bg);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
-#radar{display:block;width:100%;aspect-ratio:1;touch-action:manipulation}
+#radar{display:block;width:100%;aspect-ratio:1;touch-action:none}
 .radar-ctl{position:absolute;right:10px;bottom:10px;display:flex;gap:6px}
-.radar-ctl button{min-width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(10,20,35,.75);color:#e8f0fb;font-weight:700;font-size:14px;padding:0 10px}
+.radar-ctl button{min-width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(10,20,35,.75);color:#e8f0fb;font-weight:700;font-size:14px;padding:0 10px}
 .radar-note{position:absolute;left:10px;top:10px;right:10px;margin:0;font-size:12px;color:var(--radar-fg);opacity:.85}
 .meet{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .meet .btn{min-height:44px;font-size:15px}
@@ -752,7 +752,7 @@ function distM(a, b) { const dl = rad(b.lat - a.lat), dn = rad(b.lon - a.lon); c
 function bearing(a, b) { const y = Math.sin(rad(b.lon - a.lon)) * Math.cos(rad(b.lat)); const x = Math.cos(rad(a.lat)) * Math.sin(rad(b.lat)) - Math.sin(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(rad(b.lon - a.lon)); return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360; }
 const fmtD = m => m < 1000 ? Math.round(m / 10) * 10 + 'm' : m < 10000 ? (m / 1000).toFixed(1) + 'km' : Math.round(m / 1000) + 'km';
 const colorOf = id => { let x = 0; for (const c of id) x = (x * 31 + c.charCodeAt(0)) >>> 0; return 'hsl(' + (x % 360) + ' 80% 60%)'; };
-const SCALES = [200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 300000, 1000000];
+const SCALES = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 300000, 1000000];
 let zoom = 'auto';
 const visible = p => p.st && p.st.loc && Date.now() - p.st.t < KEEP_LOC * 1000;
 function center() {
@@ -774,9 +774,11 @@ function drawRadar() {
   let scale = SCALES[SCALES.length - 1];
   if (ctr) {
     const far = Math.max(0, ...others.map(p => distM(ctr, p.st.loc) + (p.st.mode === 'fuzzy' ? 700 : 0)));
-    const auto = SCALES.find(s => s >= far * 1.15) || SCALES[SCALES.length - 1];
+    const auto = SCALES.find(s => s >= Math.max(100, far * 1.15)) || SCALES[SCALES.length - 1];
     scale = zoom === 'auto' ? auto : zoom;
   }
+  shownScale = scale;
+  $('#zAuto').textContent = (zoom === 'auto' ? '自動・' : '') + fmtD(scale);
   // 輪と十字
   x.strokeStyle = lineC; x.lineWidth = 1 * dpr; x.fillStyle = fgC; x.font = (11 * dpr) + 'px system-ui'; x.textAlign = 'right'; x.textBaseline = 'top';
   for (let i = 1; i <= 4; i++) { x.beginPath(); x.arc(c, c, R * i / 4, 0, Math.PI * 2); x.stroke(); x.globalAlpha = .7; x.fillText(fmtD(scale * i / 4), c + R * i / 4 - 3 * dpr, c + 3 * dpr); x.globalAlpha = 1; }
@@ -816,10 +818,29 @@ function drawRadar() {
     x.globalAlpha = 1;
   });
 }
-$('#zIn').addEventListener('click', () => { const cur = zoom === 'auto' ? currentAuto() : zoom; zoom = SCALES[Math.max(0, SCALES.indexOf(cur) - 1)] || cur; render(); });
-$('#zOut').addEventListener('click', () => { const cur = zoom === 'auto' ? currentAuto() : zoom; zoom = SCALES[Math.min(SCALES.length - 1, SCALES.indexOf(cur) + 1)] || cur; render(); });
-$('#zAuto').addEventListener('click', () => { zoom = 'auto'; render(); });
-function currentAuto() { const ctr = center(); if (!ctr) return 1000; const far = Math.max(0, ...[...members.values()].filter(p => p.id !== G.me.id && visible(p)).map(p => distM(ctr, p.st.loc))); return SCALES.find(s => s >= far * 1.15) || SCALES[SCALES.length - 1]; }
+/* 縮尺：＋で近く、−で広く、真ん中のボタンで自動に戻す。2本の指でつまんでも変えられる */
+let shownScale = 1000;
+function stepZoom(dir) {
+  const i = SCALES.indexOf(shownScale), j = Math.min(SCALES.length - 1, Math.max(0, (i < 0 ? 4 : i) + dir));
+  if (j === i) { toast(dir < 0 ? 'これ以上は近づけないよ（いちばん狭い50m）' : 'これ以上は広げられないよ'); return; }
+  zoom = SCALES[j]; render();
+}
+$('#zIn').addEventListener('click', () => stepZoom(-1));
+$('#zOut').addEventListener('click', () => stepZoom(1));
+$('#zAuto').addEventListener('click', () => { zoom = 'auto'; render(); toast('メンバーが全員入るように、自動で合わせるよ'); });
+(function pinch() {
+  const cv = $('#radar'); let base = 0;
+  const gap = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  cv.addEventListener('touchstart', e => { if (e.touches.length === 2) base = gap(e.touches); }, { passive: true });
+  cv.addEventListener('touchmove', e => {
+    if (e.touches.length !== 2 || !base) return;
+    e.preventDefault();
+    const r = gap(e.touches) / base;
+    if (r > 1.35) { stepZoom(-1); base = gap(e.touches); }
+    else if (r < 0.74) { stepZoom(1); base = gap(e.touches); }
+  }, { passive: false });
+  cv.addEventListener('touchend', () => { base = 0; });
+})();
 
 let rTimer = 0;
 function render() { if (rTimer) return; rTimer = requestAnimationFrame(() => { rTimer = 0; renderNow(); }); }
